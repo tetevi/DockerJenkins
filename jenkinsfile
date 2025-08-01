@@ -2,55 +2,44 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = 'tt835w/flask-app'
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        DOCKER_IMAGE_NAME = 'tt835w/flask-app'
+        DOCKER_IMAGE_TAG  = '2'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                // Explicitly specifying the branch as 'main' to avoid ambiguity
-                git branch: 'main', url: 'https://github.com/tetevi/DockerJenkins.git'
+                git url: 'https://github.com/tetevi/DockerJenkins.git', branch: 'main'
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Building the Docker image with a unique tag based on the build number
-                    docker.build("${DOCKER_IMAGE}:${IMAGE_TAG}")
+                    sh "docker build -t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} ."
                 }
             }
         }
 
         stage('Login to Docker Hub') {
             steps {
-                script {
-                    // Login to Docker Hub using credentials stored in Jenkins
-                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-creds') {
-                        // Authentication happens here, and subsequent Docker commands use this registry
-                    }
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
                 }
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                script {
-                    // Pushing the Docker image to Docker Hub
-                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-creds') {
-                        docker.image("${DOCKER_IMAGE}:${IMAGE_TAG}").push()
-                    }
-                }
+                sh "docker push ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
             }
         }
     }
 
     post {
         always {
-            // Cleaning up Docker images after the pipeline completes
-            echo "Cleaning up Docker images"
-            sh "docker rmi ${DOCKER_IMAGE}:${IMAGE_TAG} || true"
+            echo 'Cleaning up Docker images'
+            sh "docker rmi ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} || true"
         }
     }
 }
